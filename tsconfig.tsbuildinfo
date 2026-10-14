@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/audio/audioengine.ts","./src/music/chords.ts","./src/playback/playbackcontroller.ts","./src/ui/controls.ts","./src/visualizer/scenemanager.ts"],"version":"5.9.3"}
