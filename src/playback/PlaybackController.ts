@@ -76,7 +76,7 @@ export class PlaybackController {
     const intervalSeconds = 1 / this.speed;
     this.audio.triggerChord(chord, intervalSeconds);
     const orderProgress = this.position / (this.queue.length - 1);
-    const brightness = 0.28 + orderProgress * 0.62;
+    const brightness = 0.08 + orderProgress * 0.88;
     this.scene.activate(chord, brightness);
     this.position += 1;
     this.onStateChange(this.state, this.position);

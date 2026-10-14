@@ -65,10 +65,10 @@ export class SceneManager {
       this.states.set(chord.id, {
         height: 0,
         target: 0,
-        baseBrightness: 0.16,
+        baseBrightness: 0.05,
         highlight: 0,
       });
-      this.setColumnTransform(index, chord, 0, this.gray(0.16));
+      this.setColumnTransform(index, chord, 0, this.gray(0.05));
     });
     this.resize();
     window.addEventListener('resize', this.resize);
@@ -89,9 +89,9 @@ export class SceneManager {
       if (state) {
         state.height = 0;
         state.target = 0;
-        state.baseBrightness = 0.16;
+        state.baseBrightness = 0.05;
         state.highlight = 0;
-        this.setColumnTransform(index, chord, 0, this.gray(0.16));
+        this.setColumnTransform(index, chord, 0, this.gray(0.05));
       }
     });
     this.columns.instanceMatrix.needsUpdate = true;
@@ -162,7 +162,7 @@ export class SceneManager {
       center.z += (chord.gridY - 5.5) * 1.38;
     });
     center.divideScalar(this.chords.length);
-    center.y = 1;
+    center.y = 2.5;
     return center;
   }
 }
