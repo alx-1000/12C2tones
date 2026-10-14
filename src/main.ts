@@ -14,11 +14,11 @@ const scene = new SceneManager(viewport, chords);
 const audio = new AudioEngine();
 const playback = new PlaybackController(chords, audio, scene);
 const controls = new Controls(ui, {
-  onStart: () => { void playback.start(); },
+  onStart: () => playback.toggle(),
   onReset: () => playback.reset(),
   onInstrument: (instrument: Instrument) => audio.setInstrument(instrument),
-  onSpeed: (seconds: number) => playback.setInterval(seconds),
-  onCameraLock: (locked: boolean) => scene.setCameraLocked(locked),
+  onSpeed: (speed: number) => playback.setSpeed(speed),
+  onResetView: () => scene.resetView(),
 });
 playback.setStateListener((state, position) => controls.update(state, position));
 

@@ -5,7 +5,8 @@ import type { Chord } from '../music/chords.ts';
 interface ColumnState {
   height: number;
   target: number;
-  active: boolean;
+  baseBrightness: number;
+  highlight: number;
 }
 
 export class SceneManager {
@@ -17,7 +18,6 @@ export class SceneManager {
   private readonly states = new Map<string, ColumnState>();
   private readonly chords: Chord[];
   private readonly clock = new THREE.Clock();
-  private lastActiveId: string | null = null;
   private animationFrame = 0;
 
   constructor(container: HTMLElement, chords: Chord[]) {
@@ -25,24 +25,25 @@ export class SceneManager {
     this.scene.background = new THREE.Color('#090909');
     this.scene.fog = new THREE.Fog('#090909', 34, 70);
 
-    this.camera.position.set(21, 23, 26);
-    this.camera.lookAt(-0.7, 1, -0.7);
+    const cameraTarget = this.getColumnCenter();
+    this.camera.position.copy(cameraTarget.clone().add(new THREE.Vector3(21, 23, 26)));
+    this.camera.lookAt(cameraTarget);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enablePan = false;
     this.controls.minDistance = 15;
     this.controls.maxDistance = 36;
-    this.controls.target.set(-0.7, 1, -0.7);
+    this.controls.target.copy(cameraTarget);
     this.controls.update();
 
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.HemisphereLight('#c8cbd0', '#101010', 1.1));
-    const keyLight = new THREE.DirectionalLight('#eef0f2', 2.2);
+    this.scene.add(new THREE.HemisphereLight('#d7d7d7', '#141414', 1.35));
+    const keyLight = new THREE.DirectionalLight('#ffffff', 2.8);
     keyLight.position.set(-10, 20, 12);
     this.scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight('#59616c', 1.1);
+    const fillLight = new THREE.DirectionalLight('#888888', 1.35);
     fillLight.position.set(12, 8, -15);
     this.scene.add(fillLight);
 
@@ -55,48 +56,52 @@ export class SceneManager {
     this.scene.add(floor);
 
     const geometry = new THREE.BoxGeometry(0.78, 1, 0.78);
-    const material = new THREE.MeshStandardMaterial({ color: '#747a82', roughness: 0.9, metalness: 0.02 });
+    const material = new THREE.MeshStandardMaterial({ color: '#b0b0b0', roughness: 0.93, metalness: 0 });
     this.columns = new THREE.InstancedMesh(geometry, material, chords.length);
     this.columns.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.scene.add(this.columns);
 
     chords.forEach((chord, index) => {
-      this.states.set(chord.id, { height: 0, target: 0, active: false });
-      this.setColumnTransform(index, chord, 0, false);
+      this.states.set(chord.id, {
+        height: 0,
+        target: 0,
+        baseBrightness: 0.16,
+        highlight: 0,
+      });
+      this.setColumnTransform(index, chord, 0, this.gray(0.16));
     });
     this.resize();
     window.addEventListener('resize', this.resize);
     this.render();
   }
 
-  activate(chord: Chord): void {
-    if (this.lastActiveId) {
-      const previous = this.states.get(this.lastActiveId);
-      if (previous) previous.active = false;
-    }
+  activate(chord: Chord, brightness: number): void {
     const state = this.states.get(chord.id);
     if (!state) return;
     state.target = chord.height;
-    state.active = true;
-    this.lastActiveId = chord.id;
+    state.baseBrightness = brightness;
+    state.highlight = 1;
   }
 
   reset(): void {
-    this.lastActiveId = null;
     this.chords.forEach((chord, index) => {
       const state = this.states.get(chord.id);
       if (state) {
         state.height = 0;
         state.target = 0;
-        state.active = false;
-        this.setColumnTransform(index, chord, 0, false);
+        state.baseBrightness = 0.16;
+        state.highlight = 0;
+        this.setColumnTransform(index, chord, 0, this.gray(0.16));
       }
     });
     this.columns.instanceMatrix.needsUpdate = true;
   }
 
-  setCameraLocked(locked: boolean): void {
-    this.controls.enabled = !locked;
+  resetView(): void {
+    const target = this.getColumnCenter();
+    this.camera.position.copy(target.clone().add(new THREE.Vector3(-22, 24, 22)));
+    this.controls.target.copy(target);
+    this.controls.update();
   }
 
   dispose(): void {
@@ -123,13 +128,16 @@ export class SceneManager {
       const state = this.states.get(chord.id);
       if (!state) return;
       state.height += (state.target - state.height) * Math.min(1, delta * 9);
-      this.setColumnTransform(index, chord, state.height, state.active);
+      state.highlight = Math.max(0, state.highlight - delta * 3.2);
+      const displayBrightness = state.baseBrightness + (1 - state.baseBrightness) * state.highlight;
+      const displayColor = this.gray(displayBrightness);
+      this.setColumnTransform(index, chord, state.height, displayColor);
     });
     this.columns.instanceMatrix.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   };
 
-  private setColumnTransform(index: number, chord: Chord, height: number, active: boolean): void {
+  private setColumnTransform(index: number, chord: Chord, height: number, color: THREE.Color): void {
     const spacing = 1.38;
     const x = (chord.gridX - 6.5) * spacing;
     const z = (chord.gridY - 5.5) * spacing;
@@ -139,8 +147,22 @@ export class SceneManager {
       new THREE.Vector3(1, Math.max(height, 0.002), 1),
     );
     this.columns.setMatrixAt(index, matrix);
-    const color = active ? new THREE.Color('#c5c9ce') : new THREE.Color('#747a82');
     this.columns.setColorAt(index, color);
     if (this.columns.instanceColor) this.columns.instanceColor.needsUpdate = true;
+  }
+
+  private gray(brightness: number): THREE.Color {
+    return new THREE.Color(brightness, brightness, brightness);
+  }
+
+  private getColumnCenter(): THREE.Vector3 {
+    const center = new THREE.Vector3();
+    this.chords.forEach((chord) => {
+      center.x += (chord.gridX - 6.5) * 1.38;
+      center.z += (chord.gridY - 5.5) * 1.38;
+    });
+    center.divideScalar(this.chords.length);
+    center.y = 1;
+    return center;
   }
 }
