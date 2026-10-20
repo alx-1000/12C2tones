@@ -10,7 +10,9 @@ export class PlaybackController {
   private timer: number | null = null;
   private state: PlaybackState = 'ready';
   private speed = 1;
-  private onStateChange: (state: PlaybackState, position: number) => void = () => undefined;
+  private seed = 120;
+  private currentChord: Chord | null = null;
+  private onStateChange: (state: PlaybackState, position: number, chord: Chord | null) => void = () => undefined;
 
   constructor(
     private readonly chords: Chord[],
@@ -20,7 +22,7 @@ export class PlaybackController {
     this.queue = this.shuffle(chords);
   }
 
-  setStateListener(listener: (state: PlaybackState, position: number) => void): void {
+  setStateListener(listener: (state: PlaybackState, position: number, chord: Chord | null) => void): void {
     this.onStateChange = listener;
   }
 
@@ -28,11 +30,17 @@ export class PlaybackController {
     this.speed = speed;
   }
 
+  setSeed(seed: number): void {
+    if (!Number.isFinite(seed)) return;
+    this.seed = Math.abs(Math.trunc(seed)) || 1;
+    if (this.state === 'ready' || this.state === 'complete') this.queue = this.shuffle(this.chords);
+  }
+
   async start(): Promise<boolean> {
     if (this.state === 'playing' || this.state === 'complete') return false;
     await this.audio.start();
     this.state = 'playing';
-    this.onStateChange(this.state, this.position);
+    this.onStateChange(this.state, this.position, this.currentChord);
     this.scheduleNext();
     return true;
   }
@@ -47,7 +55,7 @@ export class PlaybackController {
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = null;
     this.state = 'paused';
-    this.onStateChange(this.state, this.position);
+    this.onStateChange(this.state, this.position, this.currentChord);
   }
 
   reset(): void {
@@ -56,9 +64,10 @@ export class PlaybackController {
     this.audio.stop();
     this.position = 0;
     this.state = 'ready';
+    this.currentChord = null;
     this.queue = this.shuffle(this.chords);
     this.scene.reset();
-    this.onStateChange(this.state, this.position);
+    this.onStateChange(this.state, this.position, this.currentChord);
   }
 
   dispose(): void {
@@ -69,24 +78,27 @@ export class PlaybackController {
   private scheduleNext(): void {
     if (this.position >= this.queue.length) {
       this.state = 'complete';
-      this.onStateChange(this.state, this.position);
+      this.onStateChange(this.state, this.position, this.currentChord);
       return;
     }
     const chord = this.queue[this.position];
+    this.currentChord = chord;
     const intervalSeconds = 1 / this.speed;
     this.audio.triggerChord(chord, intervalSeconds);
     const orderProgress = this.position / (this.queue.length - 1);
     const brightness = 0.08 + orderProgress * 0.88;
     this.scene.activate(chord, brightness);
     this.position += 1;
-    this.onStateChange(this.state, this.position);
+    this.onStateChange(this.state, this.position, this.currentChord);
     this.timer = window.setTimeout(() => this.scheduleNext(), intervalSeconds * 1000);
   }
 
   private shuffle(items: Chord[]): Chord[] {
     const result = [...items];
+    let randomState = this.seed >>> 0;
     for (let index = result.length - 1; index > 0; index -= 1) {
-      const swapIndex = Math.floor(Math.random() * (index + 1));
+      randomState = (1664525 * randomState + 1013904223) >>> 0;
+      const swapIndex = Math.floor((randomState / 4294967296) * (index + 1));
       [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
     }
     return result;

@@ -18,9 +18,10 @@ const controls = new Controls(ui, {
   onReset: () => playback.reset(),
   onInstrument: (instrument: Instrument) => audio.setInstrument(instrument),
   onSpeed: (speed: number) => playback.setSpeed(speed),
+  onSeed: (seed: number) => playback.setSeed(seed),
   onResetView: () => scene.resetView(),
 });
-playback.setStateListener((state, position) => controls.update(state, position));
+playback.setStateListener((state, position, chord) => controls.update(state, position, chord));
 
 window.addEventListener('beforeunload', () => {
   playback.dispose();
